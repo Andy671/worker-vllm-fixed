@@ -57,7 +57,8 @@ class vLLMEngine:
             llm_input = self.tokenizer.apply_chat_template(llm_input)
         results_generator = self.llm.generate(llm_input, validated_sampling_params, request_id)
         n_responses, n_input_tokens, is_first_output = validated_sampling_params.n, 0, True
-        last_output_texts, token_counters = ["" for _ in range(n_responses)], {"batch": 0, "total": 0}
+        last_output_tokens = [[] for _ in range(n_responses)]
+        token_counters = {"batch": 0, "total": 0}
 
         batch = {
             "choices": [{"tokens": []} for _ in range(n_responses)],
@@ -77,9 +78,10 @@ class vLLMEngine:
                 output_index = output.index
                 token_counters["total"] += 1
                 if stream:
-                    new_output = output.text[len(last_output_texts[output_index]):]
-                    batch["choices"][output_index]["tokens"].append(new_output)
-                    token_counters["batch"] += 1
+                    current_tokens = output.token_ids
+                    new_tokens = current_tokens[len(last_output_tokens[output_index]):]
+                    batch["choices"][output_index]["tokens"].extend(new_tokens)
+                    token_counters["batch"] += len(new_tokens)
 
                     if token_counters["batch"] >= batch_size.current_batch_size:
                         batch["usage"] = {
@@ -93,11 +95,11 @@ class vLLMEngine:
                         token_counters["batch"] = 0
                         batch_size.update()
 
-                last_output_texts[output_index] = output.text
+                last_output_tokens[output_index] = current_tokens
 
         if not stream:
-            for output_index, output in enumerate(last_output_texts):
-                batch["choices"][output_index]["tokens"] = [output]
+            for output_index, tokens in enumerate(last_output_tokens):
+                batch["choices"][output_index]["tokens"] = tokens
             token_counters["batch"] += 1
 
         if token_counters["batch"] > 0:

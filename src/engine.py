@@ -95,7 +95,7 @@ class vLLMEngine:
                         token_counters["batch"] = 0
                         batch_size.update()
 
-                last_output_tokens[output_index] = current_tokens
+                last_output_tokens[output_index] = output.token_ids
 
         if not stream:
             for output_index, tokens in enumerate(last_output_tokens):
